@@ -1,0 +1,735 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#14161a">
+<title>Lights</title>
+<style>
+  :root {
+    --bg: #f3f1ec; --card: #ffffff; --sunk: #ebe8e1; --text: #1c1d20; --muted: #7a7c82;
+    --line: #e4e1da; --accent: #e8a33d; --off: #c9c6bf; --danger: #c8553d;
+    --shadow: 0 1px 2px rgba(0,0,0,.05), 0 4px 16px rgba(0,0,0,.05);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14161a; --card: #1e2126; --sunk: #181a1f; --text: #ecebe8; --muted: #8b8e95;
+      --line: #2c3037; --accent: #f0b450; --off: #3a3e46; --danger: #e07a62;
+      --shadow: none;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 15px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    -webkit-tap-highlight-color: transparent;
+  }
+  button { font: inherit; color: inherit; }
+  header {
+    position: sticky; top: 0; z-index: 3; background: var(--bg);
+    display: flex; align-items: center; gap: 8px; padding: 16px 16px 12px;
+    border-bottom: 1px solid var(--line);
+  }
+  h1 { font-size: 22px; margin: 0; letter-spacing: -.02em; flex: 1; }
+  h1 small { font-size: 13px; color: var(--muted); font-weight: 500; margin-left: 6px; }
+  .wrap { max-width: 1200px; margin: 0 auto; padding: 0 16px 40px; }
+  .section-head { display: flex; align-items: center; justify-content: space-between; margin: 22px 0 10px; }
+  h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 0; }
+  .btn {
+    border: 1px solid var(--line); background: var(--card);
+    border-radius: 999px; padding: 8px 14px; font-weight: 600; cursor: pointer;
+  }
+  .btn:active { transform: scale(.97); }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: #1c1d20; }
+  .btn.danger { color: var(--danger); }
+  .btn.small { padding: 5px 12px; font-size: 13px; }
+  .icon {
+    border: 0; background: none; color: var(--muted); cursor: pointer;
+    width: 32px; height: 32px; border-radius: 8px; flex: none; font-size: 15px;
+  }
+  .icon:hover { background: var(--sunk); color: var(--text); }
+  .grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); }
+  #groups { display: grid; gap: 12px; }
+  .card {
+    background: var(--card); border: 1px solid var(--line); border-radius: 16px;
+    padding: 14px 16px 16px; box-shadow: var(--shadow); transition: opacity .2s;
+  }
+  .card.offline { opacity: .55; }
+  .top { display: flex; align-items: center; gap: 10px; }
+  .bulb {
+    width: 36px; height: 36px; border-radius: 50%; flex: none;
+    background: var(--off); transition: background .25s, box-shadow .25s;
+  }
+  .name { flex: 1; min-width: 0; }
+  .name b { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .name span { color: var(--muted); font-size: 12px; }
+  .switch { position: relative; width: 50px; height: 30px; flex: none; }
+  .switch input { opacity: 0; width: 0; height: 0; }
+  .switch i {
+    position: absolute; inset: 0; border-radius: 999px; background: var(--off);
+    cursor: pointer; transition: background .2s;
+  }
+  .switch i::after {
+    content: ""; position: absolute; top: 3px; left: 3px; width: 24px; height: 24px;
+    border-radius: 50%; background: #fff; transition: transform .2s;
+    box-shadow: 0 1px 3px rgba(0,0,0,.25);
+  }
+  .switch input:checked + i { background: var(--accent); }
+  .switch input:checked + i::after { transform: translateX(20px); }
+  .controls { margin-top: 14px; display: grid; gap: 12px; }
+  .controls[hidden], [hidden] { display: none !important; }
+  .row { display: grid; grid-template-columns: 22px 1fr 38px; align-items: center; gap: 10px; }
+  .row .ico { color: var(--muted); font-size: 15px; text-align: center; }
+  .row .val { color: var(--muted); font-size: 12px; text-align: right; font-variant-numeric: tabular-nums; }
+  input[type=range] {
+    -webkit-appearance: none; appearance: none; width: 100%; height: 8px;
+    border-radius: 999px; background: var(--line); outline: none; margin: 0;
+  }
+  input[type=range].temp { background: linear-gradient(90deg, #ffb35c, #fff3e0, #cfe3ff); }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none; width: 24px; height: 24px; border-radius: 50%;
+    background: #fff; border: 2px solid var(--accent); cursor: pointer;
+    box-shadow: 0 1px 3px rgba(0,0,0,.25);
+  }
+  input[type=range]::-moz-range-thumb {
+    width: 20px; height: 20px; border-radius: 50%; background: #fff;
+    border: 2px solid var(--accent); cursor: pointer;
+  }
+  .tabs { display: flex; background: var(--sunk); border-radius: 10px; padding: 3px; }
+  .tabs button {
+    flex: 1; border: 0; background: none; color: var(--muted);
+    font-weight: 600; padding: 6px; border-radius: 8px; cursor: pointer;
+  }
+  .tabs button.on { background: var(--card); color: var(--text); box-shadow: var(--shadow); }
+  .swatches { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .sw {
+    width: 30px; height: 30px; border-radius: 50%; border: 2px solid var(--card);
+    outline: 1px solid var(--line); cursor: pointer; padding: 0;
+  }
+  .sw.white { background: radial-gradient(circle at 35% 35%, #fff, #ffe2b8); }
+  .picker { position: relative; width: 30px; height: 30px; }
+  .picker input { position: absolute; inset: 0; opacity: 0; width: 100%; height: 100%; cursor: pointer; }
+  .picker span {
+    display: block; width: 100%; height: 100%; border-radius: 50%; pointer-events: none;
+    background: conic-gradient(red, yellow, lime, cyan, blue, magenta, red);
+  }
+  .err { color: var(--danger); font-size: 12px; margin-top: 8px; }
+
+  /* groups */
+  .group { padding-bottom: 14px; }
+  .group .gicon {
+    width: 36px; height: 36px; border-radius: 10px; flex: none; display: grid; place-items: center;
+    background: var(--sunk); color: var(--muted); font-weight: 700; transition: background .25s, color .25s;
+  }
+  .group.lit .gicon { background: var(--accent); color: #1c1d20; }
+  .chev { transition: transform .2s; }
+  .group.open .chev { transform: rotate(90deg); }
+  .scenes { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 14px; padding-top: 12px; border-top: 1px dashed var(--line); }
+  .scenes .label { width: 100%; font-size: 12px; color: var(--muted); }
+  .chip {
+    display: inline-flex; align-items: center; border: 1px solid var(--line); background: var(--sunk);
+    border-radius: 999px; overflow: hidden;
+  }
+  .chip button { border: 0; background: none; cursor: pointer; padding: 6px 4px 6px 12px; font-weight: 600; font-size: 13px; }
+  .chip button.more { padding: 6px 10px 6px 6px; color: var(--muted); }
+  .chip button:active { opacity: .6; }
+  .chip.add { border-style: dashed; background: none; }
+  .chip.add button { padding: 6px 12px; color: var(--muted); }
+  .members { margin-top: 14px; }
+  .members .card { box-shadow: none; background: var(--sunk); }
+  .empty { color: var(--muted); padding: 24px 0; text-align: center; }
+  .empty.boxed { border: 1px dashed var(--line); border-radius: 16px; }
+
+  /* dialog */
+  dialog {
+    border: 1px solid var(--line); border-radius: 16px; background: var(--card); color: var(--text);
+    padding: 0; width: min(420px, calc(100% - 32px)); box-shadow: 0 20px 60px rgba(0,0,0,.3);
+  }
+  dialog::backdrop { background: rgba(0,0,0,.4); }
+  dialog form { padding: 18px; display: grid; gap: 14px; }
+  dialog h3 { margin: 0; font-size: 18px; }
+  dialog p { margin: 0; color: var(--muted); font-size: 14px; }
+  dialog input[type=text] {
+    width: 100%; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line);
+    background: var(--sunk); color: var(--text); font: inherit;
+  }
+  dialog .members-list { max-height: 45vh; overflow: auto; border: 1px solid var(--line); border-radius: 10px; }
+  dialog .members-list label {
+    display: flex; align-items: center; gap: 10px; padding: 10px 12px; cursor: pointer;
+    border-bottom: 1px solid var(--line);
+  }
+  dialog .members-list label:last-child { border-bottom: 0; }
+  dialog .members-list input { width: 18px; height: 18px; accent-color: var(--accent); }
+  dialog .members-list small { color: var(--muted); margin-left: auto; }
+  dialog .actions { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; }
+  dialog .actions .left { margin-right: auto; }
+  dialog .stack { display: grid; gap: 8px; }
+  dialog .stack .btn { text-align: left; border-radius: 10px; }
+
+  #toast {
+    position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%) translateY(120px); z-index: 10;
+    background: var(--text); color: var(--bg); padding: 10px 16px; border-radius: 10px;
+    font-weight: 600; transition: transform .25s; max-width: calc(100% - 32px);
+  }
+  #toast.show { transform: translateX(-50%) translateY(0); }
+</style>
+</head>
+<body>
+<header>
+  <h1>Lights<small id="count"></small></h1>
+  <button class="btn" id="allOff">All off</button>
+  <button class="btn primary" id="allOn">All on</button>
+</header>
+
+<div class="wrap">
+  <div class="section-head"><h2>Groups</h2><button class="btn small" id="newGroup">+ New group</button></div>
+  <div id="groups"></div>
+
+  <div class="section-head"><h2 id="ungroupedHead">Not in a group</h2></div>
+  <div class="grid" id="grid"><div class="empty">Looking for bulbs…</div></div>
+  <div class="empty boxed" id="ungroupedEmpty" hidden>Every light is in a group.</div>
+</div>
+
+<dialog id="dlg"></dialog>
+<div id="toast"></div>
+
+<template id="bulbTpl">
+  <div class="card bulbcard">
+    <div class="top">
+      <div class="bulb"></div>
+      <div class="name"><b></b><span></span></div>
+      <button class="icon rename" title="Rename">✎</button>
+      <label class="switch"><input type="checkbox"><i></i></label>
+    </div>
+    <div class="controls">
+      <div class="tabs" hidden>
+        <button data-mode="white">White</button>
+        <button data-mode="colour">Color</button>
+      </div>
+      <div class="row"><span class="ico">☀</span><input type="range" class="bright" min="1" max="100"><span class="val"></span></div>
+      <div class="row temp-row" hidden><span class="ico">◐</span><input type="range" class="temp" min="0" max="100"><span class="val"></span></div>
+      <div class="swatches" hidden></div>
+    </div>
+    <div class="err" hidden></div>
+  </div>
+</template>
+
+<template id="groupTpl">
+  <div class="card group">
+    <div class="top">
+      <button class="icon chev" title="Show bulbs">▸</button>
+      <div class="gicon"></div>
+      <div class="name"><b></b><span></span></div>
+      <button class="icon edit" title="Edit group">✎</button>
+      <label class="switch"><input type="checkbox"><i></i></label>
+    </div>
+    <div class="controls">
+      <div class="row"><span class="ico">☀</span><input type="range" class="bright" min="1" max="100"><span class="val"></span></div>
+      <div class="row temp-row" hidden><span class="ico">◐</span><input type="range" class="temp" min="0" max="100"><span class="val"></span></div>
+      <div class="swatches" hidden></div>
+    </div>
+    <div class="scenes"><span class="label">Scenes</span></div>
+    <div class="members grid" hidden></div>
+  </div>
+</template>
+
+<script>
+const SWATCHES = ["#ff2a1a", "#ff8a00", "#ffd400", "#3ddc4a", "#00c2ff", "#2a5cff", "#9b3dff", "#ff3da8"];
+const $ = s => document.querySelector(s);
+const bulbs = new Map();          // id -> {state, views: [card elements], busyUntil}
+const groupViews = new Map();     // group id -> {el, busyUntil}
+let groups = [], groupsSig = "";
+let openGroups = new Set();
+try { openGroups = new Set(JSON.parse(localStorage.getItem("openGroups") || "[]")); } catch {}
+
+// ---------- helpers ----------
+
+async function api(path, body, method) {
+  const opts = body === undefined && !method ? {} : {
+    method: method || "POST", headers: {"Content-Type": "application/json"},
+    body: body === undefined ? undefined : JSON.stringify(body)
+  };
+  const res = await fetch(path, opts);
+  if (!res.ok) {
+    let msg = res.statusText;
+    try { const d = (await res.json()).detail; msg = typeof d === "string" ? d : JSON.stringify(d); } catch {}
+    throw new Error(msg);
+  }
+  return res.json();
+}
+
+function toast(msg) {
+  const t = $("#toast");
+  t.textContent = msg; t.classList.add("show");
+  clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove("show"), 3000);
+}
+
+function reportGroupResult(r) {
+  if (r && r.failed && r.failed.length) toast(`No response from: ${r.failed.join(", ")}`);
+}
+
+// White temperature (0 warm .. 100 cold) -> approximate display colour
+function tempColour(t) {
+  const warm = [255, 179, 92], cold = [207, 227, 255], mid = [255, 243, 224];
+  const [a, b, f] = t < 50 ? [warm, mid, t / 50] : [mid, cold, (t - 50) / 50];
+  return `rgb(${a.map((v, i) => Math.round(v + (b[i] - v) * f)).join(",")})`;
+}
+
+// Send at most every 300 ms while a slider is dragged
+function throttled(fn) {
+  let last = 0, timer = null, pending = null;
+  return (...args) => {
+    pending = args;
+    const run = () => { last = Date.now(); timer = null; fn(...pending); };
+    if (Date.now() - last > 300) run();
+    else if (!timer) timer = setTimeout(run, 300 - (Date.now() - last));
+  };
+}
+
+function el(tag, attrs = {}, text) {
+  const e = document.createElement(tag);
+  Object.entries(attrs).forEach(([k, v]) => k === "class" ? e.className = v : e.setAttribute(k, v));
+  if (text !== undefined) e.textContent = text;
+  return e;
+}
+
+function swatchRow(container, onPick, withWhite) {
+  if (withWhite) {
+    const w = el("button", {class: "sw white", title: "White"});
+    w.addEventListener("click", () => onPick(null));
+    container.appendChild(w);
+  }
+  SWATCHES.forEach(col => {
+    const b = el("button", {class: "sw", title: col});
+    b.style.background = col;
+    b.addEventListener("click", () => onPick(col));
+    container.appendChild(b);
+  });
+  const picker = el("label", {class: "picker", title: "Custom color"});
+  picker.innerHTML = '<input type="color"><span></span>';
+  const send = throttled(onPick);
+  picker.querySelector("input").addEventListener("input", e => send(e.target.value));
+  container.appendChild(picker);
+}
+
+// ---------- dialogs ----------
+
+function dialog(title, bodyNodes, actions, extra) {
+  return new Promise(resolve => {
+    const d = $("#dlg");
+    d.innerHTML = "";
+    const form = el("form", {method: "dialog"});
+    form.appendChild(el("h3", {}, title));
+    bodyNodes.forEach(n => form.appendChild(n));
+    const bar = el("div", {class: "actions"});
+    if (extra) {               // e.g. a "Delete" button on the left
+      // type=button so pressing Enter never triggers it
+      const b = el("button", {type: "button", class: "btn left " + (extra.kind || "")}, extra.label);
+      b.addEventListener("click", () => d.close(extra.value));
+      bar.appendChild(b);
+    }
+    const cancel = el("button", {type: "button", class: "btn"}, "Cancel");
+    cancel.addEventListener("click", () => d.close(""));
+    // the primary button must come first in the DOM so Enter triggers it
+    actions.forEach(a => bar.appendChild(el("button", {type: "submit", value: a.value, class: "btn " + (a.kind || "")}, a.label)));
+    bar.insertBefore(cancel, bar.querySelector("button[type=submit]"));
+    form.appendChild(bar);
+    d.appendChild(form);
+    d.returnValue = "";
+    d.onclose = () => resolve(d.returnValue || null);
+    d.showModal();
+    const first = form.querySelector("input[type=text]");
+    if (first) { first.focus(); first.select(); }
+  });
+}
+
+async function askText(title, value, hint) {
+  const input = el("input", {type: "text", maxlength: "60"});
+  input.value = value || "";
+  const nodes = hint ? [el("p", {}, hint), input] : [input];
+  const r = await dialog(title, nodes, [{label: "Save", value: "ok", kind: "primary"}]);
+  return r === "ok" ? input.value.trim() : null;
+}
+
+async function confirmBox(title, text, label) {
+  return await dialog(title, [el("p", {}, text)], [{label, value: "ok", kind: "primary danger"}]) === "ok";
+}
+
+async function groupDialog(group) {
+  const name = el("input", {type: "text", maxlength: "60", placeholder: "e.g. Living room"});
+  name.value = group ? group.name : "";
+  const list = el("div", {class: "members-list"});
+  const members = new Set(group ? group.members : []);
+  [...bulbs.values()].map(b => b.state).sort((a, b) => a.name.localeCompare(b.name)).forEach(s => {
+    const lab = el("label");
+    const cb = el("input", {type: "checkbox", value: s.id});
+    cb.checked = members.has(s.id);
+    const other = groups.filter(g => g !== group && g.members.includes(s.id)).map(g => g.name);
+    lab.append(cb, el("span", {}, s.name));
+    if (other.length) lab.appendChild(el("small", {}, "also in " + other.join(", ")));
+    list.appendChild(lab);
+  });
+  const r = await dialog(group ? "Edit group" : "New group",
+    [name, el("p", {}, "Bulbs in this group:"), list],
+    [{label: group ? "Save" : "Create", value: "ok", kind: "primary"}],
+    group ? {label: "Delete group", value: "delete", kind: "danger"} : null);
+  if (r === "delete") {
+    if (await confirmBox("Delete group?", `"${group.name}" and its scenes will be removed. The bulbs themselves are not affected.`, "Delete"))
+      return {delete: true};
+    return null;
+  }
+  if (r !== "ok") return null;
+  const chosen = [...list.querySelectorAll("input:checked")].map(c => c.value);
+  if (!name.value.trim()) { toast("Please give the group a name"); return null; }
+  return {name: name.value.trim(), members: chosen};
+}
+
+async function sceneMenu(scene) {
+  const stack = el("div", {class: "stack"});
+  const pick = v => () => { $("#dlg").close(v); };
+  [["recapture", "Overwrite with current state"], ["rename", "Rename"], ["delete", "Delete"]].forEach(([v, label]) => {
+    const b = el("button", {type: "button", class: "btn" + (v === "delete" ? " danger" : "")}, label);
+    b.addEventListener("click", pick(v));
+    stack.appendChild(b);
+  });
+  return await dialog(`Scene "${scene.name}"`, [stack], []);
+}
+
+// ---------- single bulbs ----------
+
+function paintBulbView(view, s) {
+  view.classList.toggle("offline", !s.online);
+  view.querySelector(".name b").textContent = s.name;
+  view.querySelector(".name span").textContent = s.online ? (s.on ? "On" : "Off") : "Offline";
+  const sw = view.querySelector(".switch input");
+  sw.checked = !!s.on; sw.disabled = !s.online;
+  view.querySelector(".controls").hidden = !s.online || !s.on;
+
+  const glow = s.mode === "colour" && s.colour ? s.colour : tempColour(s.temp ?? 30);
+  const bulb = view.querySelector(".bulb");
+  bulb.style.background = s.online && s.on ? glow : "";
+  bulb.style.boxShadow = s.online && s.on ? `0 0 ${8 + (s.brightness ?? 50) / 5}px ${glow}` : "";
+
+  const bright = view.querySelector(".bright");
+  if (document.activeElement !== bright) bright.value = s.brightness ?? 50;
+  bright.nextElementSibling.textContent = bright.value + "%";
+
+  view.querySelector(".tabs").hidden = !s.has_colour;
+  view.querySelectorAll(".tabs button").forEach(b => b.classList.toggle("on", b.dataset.mode === s.mode));
+  const isColour = s.mode === "colour";
+  view.querySelector(".temp-row").hidden = !s.has_temp || isColour;
+  const temp = view.querySelector(".temp");
+  if (document.activeElement !== temp) temp.value = s.temp ?? 50;
+  view.querySelector(".swatches").hidden = !s.has_colour || !isColour;
+
+  const err = view.querySelector(".err");
+  err.hidden = s.online; err.textContent = s.online ? "" : "Not reachable — is it powered at the wall switch?";
+}
+
+function paintBulb(id) {
+  const b = bulbs.get(id);
+  b.views = b.views.filter(v => v.isConnected);
+  b.views.forEach(v => paintBulbView(v, b.state));
+}
+
+async function sendBulb(id, path, body, optimistic) {
+  const b = bulbs.get(id);
+  b.busyUntil = Date.now() + 5000;
+  Object.assign(b.state, optimistic);
+  paintBulb(id); paintGroupsWith(id);
+  try { await api(`/api/bulbs/${id}/${path}`, body); }
+  catch (e) { toast(`${b.state.name}: ${e.message}`); }
+}
+
+function buildBulbView(id) {
+  const b = bulbs.get(id);
+  const view = $("#bulbTpl").content.firstElementChild.cloneNode(true);
+  view.dataset.id = id;
+  const st = () => b.state;
+  const touch = () => { b.busyUntil = Date.now() + 5000; };
+
+  view.querySelector(".switch input").addEventListener("change", e =>
+    sendBulb(id, "power", {on: e.target.checked}, {on: e.target.checked}));
+
+  view.querySelector(".rename").addEventListener("click", async () => {
+    const name = await askText("Rename bulb", st().name, "Leave empty to use the name from the Smart Life app.");
+    if (name === null) return;
+    try {
+      const r = await api(`/api/bulbs/${id}/name`, {name}, "PUT");
+      st().name = r.name; paintBulb(id); renderGroups(true);
+    } catch (e) { toast(e.message); }
+  });
+
+  const bright = view.querySelector(".bright");
+  const sendBright = throttled(v => st().mode === "colour"
+    ? sendBulb(id, "colour", {colour: st().colour || "#ffffff", brightness: v}, {brightness: v})
+    : sendBulb(id, "white", {brightness: v}, {brightness: v}));
+  bright.addEventListener("input", () => {
+    touch(); bright.nextElementSibling.textContent = bright.value + "%"; sendBright(+bright.value);
+  });
+
+  const temp = view.querySelector(".temp");
+  const sendTemp = throttled(v => sendBulb(id, "white", {temp: v}, {temp: v, mode: "white"}));
+  temp.addEventListener("input", () => { touch(); sendTemp(+temp.value); });
+
+  view.querySelectorAll(".tabs button").forEach(btn => btn.addEventListener("click", () => {
+    const s = st();
+    if (btn.dataset.mode === "white")
+      sendBulb(id, "white", {brightness: s.brightness ?? 80, temp: s.temp ?? 30}, {mode: "white"});
+    else
+      sendBulb(id, "colour", {colour: s.colour || SWATCHES[0], brightness: s.brightness ?? 80},
+               {mode: "colour", colour: s.colour || SWATCHES[0]});
+  }));
+
+  swatchRow(view.querySelector(".swatches"), col => { touch();
+    sendBulb(id, "colour", {colour: col, brightness: st().brightness ?? 80}, {mode: "colour", colour: col}); }, false);
+
+  b.views.push(view);
+  paintBulbView(view, b.state);
+  return view;
+}
+
+// ---------- groups ----------
+
+function memberStates(g) {
+  return g.members.map(id => bulbs.get(id)).filter(Boolean).map(b => b.state);
+}
+
+function paintGroup(g) {
+  const gv = groupViews.get(g.id);
+  if (!gv) return;
+  const v = gv.el, states = memberStates(g);
+  const online = states.filter(s => s.online), lit = online.filter(s => s.on);
+  v.classList.toggle("lit", lit.length > 0);
+  v.querySelector(".name b").textContent = g.name;
+  v.querySelector(".gicon").textContent = g.members.length;
+  let summary = g.members.length ? `${lit.length} of ${g.members.length} on` : "No bulbs yet — tap ✎ to add some";
+  if (online.length < states.length) summary += ` · ${states.length - online.length} offline`;
+  v.querySelector(".name span").textContent = summary;
+
+  const sw = v.querySelector(".switch input");
+  sw.checked = lit.length > 0; sw.disabled = online.length === 0;
+  v.querySelector(".controls").hidden = lit.length === 0;
+  v.querySelector(".temp-row").hidden = !online.some(s => s.has_temp);
+  v.querySelector(".swatches").hidden = !online.some(s => s.has_colour);
+
+  if (Date.now() > gv.busyUntil && lit.length) {
+    const avg = (arr, k, d) => { const vals = arr.map(s => s[k]).filter(x => x != null);
+      return vals.length ? Math.round(vals.reduce((a, b) => a + b, 0) / vals.length) : d; };
+    v.querySelector(".bright").value = avg(lit, "brightness", 50);
+    v.querySelector(".temp").value = avg(lit.filter(s => s.mode !== "colour"), "temp", 50);
+  }
+  const bright = v.querySelector(".bright");
+  bright.nextElementSibling.textContent = bright.value + "%";
+}
+
+function paintGroupsWith(id) {
+  groups.filter(g => g.members.includes(id)).forEach(paintGroup);
+}
+
+async function sendGroup(g, path, body, optimistic) {
+  const gv = groupViews.get(g.id);
+  if (gv) gv.busyUntil = Date.now() + 5000;
+  g.members.forEach(id => {
+    const b = bulbs.get(id);
+    if (!b || !b.state.online) return;
+    const o = typeof optimistic === "function" ? optimistic(b.state) : optimistic;
+    if (!o) return;
+    b.busyUntil = Date.now() + 5000;
+    Object.assign(b.state, o); paintBulb(id);
+  });
+  paintGroup(g);
+  try { reportGroupResult(await api(`/api/groups/${g.id}/${path}`, body)); }
+  catch (e) { toast(`${g.name}: ${e.message}`); }
+}
+
+function buildGroup(g) {
+  const v = $("#groupTpl").content.firstElementChild.cloneNode(true);
+  const gv = {el: v, busyUntil: 0};
+  groupViews.set(g.id, gv);
+  const touch = () => { gv.busyUntil = Date.now() + 5000; };
+
+  const membersEl = v.querySelector(".members");
+  const setOpen = open => {
+    v.classList.toggle("open", open); membersEl.hidden = !open;
+    open ? openGroups.add(g.id) : openGroups.delete(g.id);
+    try { localStorage.setItem("openGroups", JSON.stringify([...openGroups])); } catch {}
+  };
+  v.querySelector(".chev").addEventListener("click", () => setOpen(membersEl.hidden));
+  v.querySelector(".name").addEventListener("click", () => setOpen(membersEl.hidden));
+  v.querySelector(".name").style.cursor = "pointer";
+
+  g.members.forEach(id => { if (bulbs.has(id)) membersEl.appendChild(buildBulbView(id)); });
+  if (!g.members.length) membersEl.appendChild(el("div", {class: "empty"}, "No bulbs in this group yet."));
+  setOpen(openGroups.has(g.id));
+
+  v.querySelector(".switch input").addEventListener("change", e =>
+    sendGroup(g, "power", {on: e.target.checked}, {on: e.target.checked}));
+
+  const bright = v.querySelector(".bright");
+  const sendBright = throttled(val => sendGroup(g, "brightness", {brightness: val}, s => s.on ? {brightness: val} : null));
+  bright.addEventListener("input", () => {
+    touch(); bright.nextElementSibling.textContent = bright.value + "%"; sendBright(+bright.value);
+  });
+
+  const temp = v.querySelector(".temp");
+  const sendTemp = throttled(val => sendGroup(g, "white", {temp: val}, {temp: val, mode: "white", on: true}));
+  temp.addEventListener("input", () => { touch(); sendTemp(+temp.value); });
+
+  swatchRow(v.querySelector(".swatches"), col => {
+    touch();
+    const br = +bright.value || 80;
+    if (col === null) sendGroup(g, "white", {brightness: br}, {mode: "white", on: true, brightness: br});
+    else sendGroup(g, "colour", {colour: col, brightness: br},
+                   s => s.has_colour ? {mode: "colour", colour: col, on: true, brightness: br} : null);
+  }, true);
+
+  v.querySelector(".edit").addEventListener("click", async () => {
+    const r = await groupDialog(g);
+    if (!r) return;
+    try {
+      if (r.delete) await api(`/api/groups/${g.id}`, undefined, "DELETE");
+      else await api(`/api/groups/${g.id}`, r, "PUT");
+      await reloadGroups();
+    } catch (e) { toast(e.message); }
+  });
+
+  // scenes
+  const scenesEl = v.querySelector(".scenes");
+  g.scenes.forEach(sc => {
+    const chip = el("span", {class: "chip"});
+    const apply = el("button", {type: "button", title: "Apply scene"}, sc.name);
+    const more = el("button", {type: "button", class: "more", title: "Scene options"}, "⋯");
+    apply.addEventListener("click", async () => {
+      g.members.forEach(id => { const b = bulbs.get(id), st = sc.states[id];
+        if (b && st && b.state.online) { b.busyUntil = Date.now() + 5000;
+          Object.assign(b.state, st.on ? st : {on: false}); paintBulb(id); } });
+      paintGroup(g); touch();
+      try { const r = await api(`/api/groups/${g.id}/scenes/${sc.id}/apply`, {});
+        r.failed.length ? reportGroupResult(r) : toast(`"${sc.name}" applied`); }
+      catch (e) { toast(e.message); }
+    });
+    more.addEventListener("click", async () => {
+      const action = await sceneMenu(sc);
+      try {
+        if (action === "recapture") {
+          const r = await api(`/api/groups/${g.id}/scenes/${sc.id}`, {recapture: true}, "PUT");
+          toast(r.missing.length ? `Saved — offline, not included: ${r.missing.join(", ")}` : `"${sc.name}" updated`);
+        } else if (action === "rename") {
+          const name = await askText("Rename scene", sc.name);
+          if (!name) return;
+          await api(`/api/groups/${g.id}/scenes/${sc.id}`, {name}, "PUT");
+        } else if (action === "delete") {
+          if (!await confirmBox("Delete scene?", `"${sc.name}" will be removed.`, "Delete")) return;
+          await api(`/api/groups/${g.id}/scenes/${sc.id}`, undefined, "DELETE");
+        } else return;
+        await reloadGroups();
+      } catch (e) { toast(e.message); }
+    });
+    chip.append(apply, more);
+    scenesEl.appendChild(chip);
+  });
+  const add = el("span", {class: "chip add"});
+  const addBtn = el("button", {type: "button"}, "+ Save current as scene");
+  addBtn.addEventListener("click", async () => {
+    const name = await askText("Save scene",  "",
+      "Saves exactly how each bulb in this group looks right now — on/off, brightness, white tone or color.");
+    if (!name) return;
+    try {
+      const r = await api(`/api/groups/${g.id}/scenes`, {name});
+      toast(r.missing.length ? `Saved — offline, not included: ${r.missing.join(", ")}` : `"${name}" saved`);
+      await reloadGroups();
+    } catch (e) { toast(e.message); }
+  });
+  add.appendChild(addBtn);
+  scenesEl.appendChild(add);
+
+  paintGroup(g);
+  return v;
+}
+
+function renderGroups(force) {
+  const sig = JSON.stringify(groups);
+  if (!force && sig === groupsSig) { groups.forEach(paintGroup); return; }
+  groupsSig = sig;
+  const container = $("#groups");
+  container.innerHTML = "";
+  groupViews.clear();
+  if (!groups.length) {
+    container.appendChild(el("div", {class: "empty boxed"}, "No groups yet. Create one to control several bulbs together and save scenes."));
+  }
+  groups.forEach(g => container.appendChild(buildGroup(g)));
+  bulbs.forEach((_, id) => paintBulb(id));     // drops views that were removed
+  updateUngrouped();
+}
+
+// The bottom list only shows bulbs that are in no group
+// (new bulbs, and bulbs from deleted groups or removed from a group).
+function updateUngrouped() {
+  const grouped = new Set(groups.flatMap(g => g.members));
+  let shown = 0;
+  $("#grid").querySelectorAll(".bulbcard").forEach(v => {
+    v.hidden = grouped.has(v.dataset.id);
+    if (!v.hidden) shown++;
+  });
+  $("#ungroupedEmpty").hidden = shown > 0 || bulbs.size === 0;
+  $("#ungroupedHead").textContent = shown ? `Not in a group (${shown})` : "Not in a group";
+}
+
+async function reloadGroups() {
+  try { groups = await api("/api/groups"); } catch (e) { toast(e.message); return; }
+  renderGroups(true);
+}
+
+// ---------- loading ----------
+
+async function refresh() {
+  let data;
+  try { data = await api("/api/state"); }
+  catch (e) { toast("Server not reachable"); return; }
+  const first = bulbs.size === 0;
+  if (first) $("#grid").innerHTML = data.bulbs.length ? "" : '<div class="empty">No bulbs in devices.json</div>';
+  for (const s of data.bulbs) {
+    let b = bulbs.get(s.id);
+    if (!b) {
+      b = {state: s, views: [], busyUntil: 0};
+      bulbs.set(s.id, b);
+      $("#grid").appendChild(buildBulbView(s.id));
+      continue;
+    }
+    if (Date.now() < b.busyUntil) continue;   // don't overwrite while the user is adjusting
+    b.state = s; paintBulb(s.id);
+  }
+  groups = data.groups;
+  renderGroups(first);
+
+  const all = data.bulbs, on = all.filter(s => s.online && s.on).length, off = all.filter(s => !s.online).length;
+  $("#count").textContent = `${on} of ${all.length} on` + (off ? ` · ${off} offline` : "");
+}
+
+async function allPower(on) {
+  bulbs.forEach((b, id) => { if (b.state.online) { b.state.on = on; paintBulb(id); } });
+  groups.forEach(paintGroup);
+  try { reportGroupResult(await api("/api/all/power", {on})); } catch (e) { toast(e.message); }
+  bulbs.forEach(b => b.busyUntil = 0);
+  refresh();
+}
+
+$("#allOn").onclick = () => allPower(true);
+$("#allOff").onclick = () => allPower(false);
+$("#newGroup").onclick = async () => {
+  const r = await groupDialog(null);
+  if (!r) return;
+  try {
+    const g = await api("/api/groups", r);
+    openGroups.add(g.id);
+    await reloadGroups();
+  } catch (e) { toast(e.message); }
+};
+
+refresh();
+setInterval(() => { if (!document.hidden && !$("#dlg").open) refresh(); }, 10000);
+document.addEventListener("visibilitychange", () => { if (!document.hidden) refresh(); });
+</script>
+</body>
+</html>

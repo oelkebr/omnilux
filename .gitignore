@@ -1,0 +1,7 @@
+.venv/
+__pycache__/
+devices.json
+tinytuya.json
+snapshot.json
+tuya-raw.json
+settings.json

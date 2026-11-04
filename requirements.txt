@@ -1,0 +1,3 @@
+tinytuya
+fastapi
+uvicorn
