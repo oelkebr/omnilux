@@ -11,17 +11,21 @@ or http://<this-PC's-IP>:8000 on your phone (same Wi-Fi).
 from pathlib import Path
 from typing import List, Optional
 
-from fastapi import FastAPI, HTTPException
+from fastapi import Body, FastAPI, HTTPException
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
+from choreo import Player, clean_choreo, example_choreos
 from lights import load_bulbs, run_parallel, snapshot
 from store import Store
 
 app = FastAPI(title="Lights")
 BULBS = load_bulbs()
 STORE = Store()
+PLAYER = Player(BULBS, STORE)
 INDEX = Path(__file__).parent / "static" / "index.html"
+
+STORE.seed_choreos([clean_choreo(c, set(BULBS), []) for c in example_choreos()])
 
 # apply custom names from settings.json
 for _bulb_id, _b in BULBS.items():
@@ -131,7 +135,9 @@ def index():
 def full_state():
     """Everything the page needs: live bulb status plus groups and scenes."""
     return {"bulbs": run_parallel(lambda b: b.status(), BULBS.values()),
-            "groups": STORE.groups}
+            "groups": STORE.groups,
+            "choreos": STORE.choreos,
+            "player": PLAYER.status()}
 
 
 # ---------- single bulbs ----------
@@ -272,3 +278,70 @@ def delete_scene(group_id: str, scene_id: str):
     if not STORE.delete_scene(group_id, scene_id):
         raise HTTPException(404, "Unknown scene")
     return {"ok": True}
+
+
+# ---------- choreographies ----------
+
+def _clean(body):
+    try:
+        return clean_choreo(body, set(BULBS), STORE.groups)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+
+def _choreo(choreo_id):
+    choreo = STORE.choreo(choreo_id)
+    if not choreo:
+        raise HTTPException(404, "Unknown choreography")
+    return choreo
+
+
+@app.get("/api/choreos")
+def list_choreos():
+    return STORE.choreos
+
+
+@app.post("/api/choreos")
+def create_choreo(body: dict = Body(...)):
+    return STORE.add_choreo(_clean(body))
+
+
+@app.put("/api/choreos/{choreo_id}")
+def edit_choreo(choreo_id: str, body: dict = Body(...)):
+    _choreo(choreo_id)
+    return STORE.update_choreo(choreo_id, _clean(body))
+
+
+@app.delete("/api/choreos/{choreo_id}")
+def delete_choreo(choreo_id: str):
+    _choreo(choreo_id)
+    if PLAYER.status().get("id") == choreo_id:
+        PLAYER.stop()
+    STORE.delete_choreo(choreo_id)
+    return {"ok": True}
+
+
+@app.post("/api/choreos/{choreo_id}/play")
+def play_choreo(choreo_id: str):
+    PLAYER.play(_choreo(choreo_id))
+    return PLAYER.status()
+
+
+@app.post("/api/choreo/preview")
+def preview_choreo(body: dict = Body(...)):
+    """Play an unsaved choreography (or a single step) straight from the editor."""
+    choreo = _clean(body)
+    choreo["id"] = None
+    PLAYER.play(choreo)
+    return PLAYER.status()
+
+
+@app.post("/api/choreo/stop")
+def stop_choreo():
+    PLAYER.stop(wait=True)
+    return PLAYER.status()
+
+
+@app.get("/api/choreo/status")
+def choreo_status():
+    return PLAYER.status()

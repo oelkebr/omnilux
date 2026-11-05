@@ -124,6 +124,17 @@
   .group.lit .gicon { background: var(--accent); color: #1c1d20; }
   .chev { transition: transform .2s; }
   .group.open .chev { transform: rotate(90deg); }
+  /* folded group: only the header row */
+  .group:not(.open) .controls, .group:not(.open) .scenes,
+  .group:not(.open) .gfoot, .group:not(.open) .members { display: none !important; }
+  .gfoot { margin-top: 12px; }
+  /* foldable sections */
+  .section-head h2 { cursor: pointer; user-select: none; }
+  .section-head h2::before {
+    content: "▸"; display: inline-block; width: 10px; margin-right: 6px; text-align: center;
+    transform: rotate(90deg); transition: transform .2s;
+  }
+  .section-head.collapsed h2::before { transform: none; }
   .scenes { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 14px; padding-top: 12px; border-top: 1px dashed var(--line); }
   .scenes .label { width: 100%; font-size: 12px; color: var(--muted); }
   .chip {
@@ -166,6 +177,68 @@
   dialog .stack { display: grid; gap: 8px; }
   dialog .stack .btn { text-align: left; border-radius: 10px; }
 
+  /* choreographies */
+  .choreo .meta { color: var(--muted); font-size: 12px; }
+  .choreo .actions-row { display: flex; gap: 8px; margin-top: 12px; align-items: center; }
+  .choreo.playing { border-color: var(--accent); }
+  .choreo .progress { height: 4px; background: var(--sunk); border-radius: 999px; margin-top: 12px; overflow: hidden; }
+  .choreo .progress i { display: block; height: 100%; background: var(--accent); width: 0; transition: width .4s; }
+  .cicon {
+    width: 36px; height: 36px; border-radius: 10px; flex: none; display: grid; place-items: center;
+    background: var(--sunk); color: var(--muted); font-size: 16px;
+  }
+  .choreo.playing .cicon { background: var(--accent); color: #1c1d20; }
+  .now {
+    display: flex; align-items: center; gap: 8px; background: var(--accent); color: #1c1d20;
+    border-radius: 999px; padding: 4px 4px 4px 12px; font-weight: 600; font-size: 13px; max-width: 45vw;
+  }
+  .now span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .now button { border: 0; background: #1c1d20; color: #fff; border-radius: 999px; padding: 4px 10px; cursor: pointer; font-weight: 600; }
+
+  /* editor */
+  #editor { width: min(760px, calc(100% - 16px)); max-height: calc(100vh - 32px); }
+  #editor .ed { padding: 18px; display: grid; gap: 14px; }
+  #editor .ed-head { display: grid; grid-template-columns: 1fr auto auto; gap: 12px; align-items: center; }
+  #editor label.check { display: flex; align-items: center; gap: 6px; font-size: 14px; white-space: nowrap; cursor: pointer; }
+  #editor label.check input { width: 18px; height: 18px; accent-color: var(--accent); }
+  .steps { display: grid; gap: 10px; }
+  .step { border: 1px solid var(--line); border-radius: 12px; background: var(--sunk); padding: 10px 12px 12px; display: grid; gap: 10px; }
+  .step-top { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .step-top .num { font-weight: 700; color: var(--muted); width: 22px; }
+  .step-top .grow { flex: 1; }
+  .step select, .step input[type=number], #editor select {
+    padding: 6px 8px; border-radius: 8px; border: 1px solid var(--line); background: var(--card);
+    color: var(--text); font: inherit; font-size: 14px;
+  }
+  .step input[type=number] { width: 76px; }
+  .fields { display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; }
+  .f { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); }
+  .f input[type=range] { width: 130px; }
+  .f .v { width: 34px; font-variant-numeric: tabular-nums; }
+  .f input[type=color] { width: 40px; height: 30px; border: 0; padding: 0; background: none; cursor: pointer; }
+  .colours { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+  .colours .c { position: relative; }
+  .colours .c input { width: 34px; height: 30px; border: 0; padding: 0; background: none; cursor: pointer; }
+  .colours .c button {
+    position: absolute; top: -6px; right: -6px; width: 18px; height: 18px; border-radius: 50%;
+    border: 0; background: var(--text); color: var(--bg); font-size: 11px; line-height: 18px; padding: 0; cursor: pointer;
+  }
+  .hint { font-size: 12px; color: var(--muted); }
+  .ed-foot { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; position: sticky; bottom: 0;
+             background: var(--card); padding-top: 12px; border-top: 1px solid var(--line); }
+  .ed-foot .total { margin-right: auto; color: var(--muted); font-size: 13px; }
+  .step-top .btns { display: flex; }
+  @media (max-width: 560px) {
+    #editor .ed { padding: 14px; }
+    #editor .ed-head { grid-template-columns: auto auto; justify-content: start; }
+    #editor .ed-head input[type=text] { grid-column: 1 / -1; }
+    .step-top .grow { display: none; }
+    .step-top select { flex: 1 1 35%; min-width: 0; }
+    .step-top .btns { width: 100%; justify-content: flex-end; margin-top: -4px; }
+    .f input[type=range] { width: 110px; }
+    .ed-foot .total { width: 100%; }
+  }
+
   #toast {
     position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%) translateY(120px); z-index: 10;
     background: var(--text); color: var(--bg); padding: 10px 16px; border-radius: 10px;
@@ -177,20 +250,27 @@
 <body>
 <header>
   <h1>Lights<small id="count"></small></h1>
+  <div class="now" id="now" hidden><span></span><button id="nowStop">Stop</button></div>
   <button class="btn" id="allOff">All off</button>
   <button class="btn primary" id="allOn">All on</button>
 </header>
 
 <div class="wrap">
-  <div class="section-head"><h2>Groups</h2><button class="btn small" id="newGroup">+ New group</button></div>
-  <div id="groups"></div>
+  <div class="section-head" data-sec="groups"><h2 title="Fold / unfold">Groups</h2><button class="btn small" id="newGroup">+ New group</button></div>
+  <div id="sec-groups"><div id="groups"></div></div>
 
-  <div class="section-head"><h2 id="ungroupedHead">Not in a group</h2></div>
-  <div class="grid" id="grid"><div class="empty">Looking for bulbs…</div></div>
-  <div class="empty boxed" id="ungroupedEmpty" hidden>Every light is in a group.</div>
+  <div class="section-head" data-sec="choreos"><h2 title="Fold / unfold">Choreographies</h2><button class="btn small" id="newChoreo">+ New choreography</button></div>
+  <div id="sec-choreos"><div class="grid" id="choreos"></div></div>
+
+  <div class="section-head" data-sec="ungrouped"><h2 id="ungroupedHead" title="Fold / unfold">Not in a group</h2></div>
+  <div id="sec-ungrouped">
+    <div class="grid" id="grid"><div class="empty">Looking for bulbs…</div></div>
+    <div class="empty boxed" id="ungroupedEmpty" hidden>Every light is in a group.</div>
+  </div>
 </div>
 
 <dialog id="dlg"></dialog>
+<dialog id="editor"></dialog>
 <div id="toast"></div>
 
 <template id="bulbTpl">
@@ -217,7 +297,7 @@
 <template id="groupTpl">
   <div class="card group">
     <div class="top">
-      <button class="icon chev" title="Show bulbs">▸</button>
+      <button class="icon chev" title="Fold / unfold">▸</button>
       <div class="gicon"></div>
       <div class="name"><b></b><span></span></div>
       <button class="icon edit" title="Edit group">✎</button>
@@ -229,6 +309,7 @@
       <div class="swatches" hidden></div>
     </div>
     <div class="scenes"><span class="label">Scenes</span></div>
+    <div class="gfoot"><button class="btn small mtoggle" type="button"></button></div>
     <div class="members grid" hidden></div>
   </div>
 </template>
@@ -239,8 +320,17 @@ const $ = s => document.querySelector(s);
 const bulbs = new Map();          // id -> {state, views: [card elements], busyUntil}
 const groupViews = new Map();     // group id -> {el, busyUntil}
 let groups = [], groupsSig = "";
-let openGroups = new Set();
-try { openGroups = new Set(JSON.parse(localStorage.getItem("openGroups") || "[]")); } catch {}
+// remembered per browser: unfolded groups, groups showing their bulbs, folded sections
+function loadSet(key) {
+  try { return new Set(JSON.parse(localStorage.getItem(key) || "[]")); } catch { return new Set(); }
+}
+function toggleSet(set, id, on, key) {
+  on ? set.add(id) : set.delete(id);
+  try { localStorage.setItem(key, JSON.stringify([...set])); } catch {}
+}
+const openGroups = loadSet("expandedGroups");
+const openMembers = loadSet("openMembers");
+const foldedSections = loadSet("foldedSections");
 
 // ---------- helpers ----------
 
@@ -400,7 +490,7 @@ async function sceneMenu(scene) {
 function paintBulbView(view, s) {
   view.classList.toggle("offline", !s.online);
   view.querySelector(".name b").textContent = s.name;
-  view.querySelector(".name span").textContent = s.online ? (s.on ? "On" : "Off") : "Offline";
+  view.querySelector(".name span").textContent = s.online ? (s.on ? (s.effect ? "Effect running" : "On") : "Off") : "Offline";
   const sw = view.querySelector(".switch input");
   sw.checked = !!s.on; sw.disabled = !s.online;
   view.querySelector(".controls").hidden = !s.online || !s.on;
@@ -550,18 +640,26 @@ function buildGroup(g) {
   const touch = () => { gv.busyUntil = Date.now() + 5000; };
 
   const membersEl = v.querySelector(".members");
+  const mtoggle = v.querySelector(".mtoggle");
+  // unfold = show controls and scenes; the bulbs themselves have their own toggle
   const setOpen = open => {
-    v.classList.toggle("open", open); membersEl.hidden = !open;
-    open ? openGroups.add(g.id) : openGroups.delete(g.id);
-    try { localStorage.setItem("openGroups", JSON.stringify([...openGroups])); } catch {}
+    v.classList.toggle("open", open);
+    toggleSet(openGroups, g.id, open, "expandedGroups");
   };
-  v.querySelector(".chev").addEventListener("click", () => setOpen(membersEl.hidden));
-  v.querySelector(".name").addEventListener("click", () => setOpen(membersEl.hidden));
+  const setMembers = show => {
+    membersEl.hidden = !show;
+    mtoggle.textContent = show ? "Hide bulbs" : `Show bulbs (${g.members.length})`;
+    toggleSet(openMembers, g.id, show, "openMembers");
+  };
+  v.querySelector(".chev").addEventListener("click", () => setOpen(!v.classList.contains("open")));
+  v.querySelector(".name").addEventListener("click", () => setOpen(!v.classList.contains("open")));
   v.querySelector(".name").style.cursor = "pointer";
+  mtoggle.addEventListener("click", () => setMembers(membersEl.hidden));
 
   g.members.forEach(id => { if (bulbs.has(id)) membersEl.appendChild(buildBulbView(id)); });
   if (!g.members.length) membersEl.appendChild(el("div", {class: "empty"}, "No bulbs in this group yet."));
   setOpen(openGroups.has(g.id));
+  setMembers(openMembers.has(g.id));
 
   v.querySelector(".switch input").addEventListener("change", e =>
     sendGroup(g, "power", {on: e.target.checked}, {on: e.target.checked}));
@@ -681,6 +779,341 @@ async function reloadGroups() {
   renderGroups(true);
 }
 
+// ---------- choreographies ----------
+
+let choreos = [], choreosSig = "", player = {playing: false}, playerTimer = null;
+
+const ACTION_LABELS = {colour: "Color", white: "White", effect: "Built-in effect", scene: "Group scene", on: "On", off: "Off"};
+const EFFECT_LABELS = {gradient: "Smooth flow", jump: "Jump", breathe: "Breathe"};
+
+function fmtTime(s) {
+  s = Math.round(s);
+  if (s < 60) return `${s} s`;
+  const m = Math.floor(s / 60), r = s % 60;
+  return r ? `${m} min ${r} s` : `${m} min`;
+}
+const totalTime = c => c.steps.reduce((t, s) => t + (+s.duration || 0), 0);
+
+function paintPlayer() {
+  const now = $("#now");
+  now.hidden = !player.playing;
+  if (player.playing) {
+    now.querySelector("span").textContent = player.holding
+      ? `▶ ${player.name} · effect running`
+      : `▶ ${player.name} · step ${player.step}/${player.steps}` + (player.loop && player.round > 1 ? ` · round ${player.round}` : "");
+  }
+  document.querySelectorAll(".choreo").forEach(card => {
+    const mine = player.playing && player.id === card.dataset.id;
+    card.classList.toggle("playing", mine);
+    card.querySelector(".play").textContent = mine ? "■ Stop" : "▶ Play";
+    card.querySelector(".progress").hidden = !mine;
+    if (mine) card.querySelector(".progress i").style.width =
+      player.holding ? "100%" : `${Math.min(100, 100 * player.step / player.steps)}%`;
+  });
+  // poll quickly while something plays
+  clearInterval(playerTimer);
+  if (player.playing) playerTimer = setInterval(async () => {
+    try { player = await api("/api/choreo/status"); paintPlayer(); } catch {}
+  }, 1500);
+}
+
+// ignore further taps while a play/stop request is on its way (stopping can take a moment)
+let playerBusy = false;
+async function playerRequest(path, label) {
+  if (playerBusy) return;
+  playerBusy = true;
+  document.querySelectorAll(".choreo .play, #nowStop").forEach(b => b.disabled = true);
+  if (label) toast(label);
+  try { player = await api(path, {}); }
+  catch (e) { toast(e.message); }
+  finally {
+    playerBusy = false;
+    document.querySelectorAll(".choreo .play, #nowStop").forEach(b => b.disabled = false);
+    paintPlayer();
+  }
+}
+
+const playChoreo = id => playerRequest(`/api/choreos/${id}/play`);
+
+async function stopChoreo() {
+  await playerRequest("/api/choreo/stop", "Stopping…");
+  bulbs.forEach(b => b.busyUntil = 0);
+  setTimeout(refresh, 300);
+}
+
+async function previewChoreo(draft, label) {
+  try {
+    player = await api("/api/choreo/preview", draft);
+    paintPlayer();
+    toast(`Playing ${label}`);
+  } catch (e) { toast(e.message); }
+}
+
+function renderChoreos(force) {
+  const sig = JSON.stringify(choreos);
+  if (!force && sig === choreosSig) return;
+  choreosSig = sig;
+  const box = $("#choreos");
+  box.innerHTML = "";
+  if (!choreos.length) {
+    box.appendChild(el("div", {class: "empty boxed", style: "grid-column: 1/-1"}, "No choreographies yet."));
+  }
+  choreos.forEach(c => {
+    const card = el("div", {class: "card choreo"});
+    card.dataset.id = c.id;
+    const top = el("div", {class: "top"});
+    const name = el("div", {class: "name"});
+    name.append(el("b", {}, c.name),
+      el("span", {class: "meta"}, `${c.steps.length} step${c.steps.length > 1 ? "s" : ""} · ${fmtTime(totalTime(c))}` +
+        (c.loop ? " · loops" : "") + (c.restore ? " · restores lights" : "")));
+    const edit = el("button", {class: "icon", title: "Edit"}, "✎");
+    edit.addEventListener("click", () => openEditor(c));
+    top.append(el("div", {class: "cicon"}, "♪"), name, edit);
+    const row = el("div", {class: "actions-row"});
+    const play = el("button", {class: "btn primary small play"}, "▶ Play");
+    play.addEventListener("click", () => player.playing && player.id === c.id ? stopChoreo() : playChoreo(c.id));
+    row.appendChild(play);
+    const prog = el("div", {class: "progress"}); prog.appendChild(el("i"));
+    card.append(top, row, prog);
+    box.appendChild(card);
+  });
+  paintPlayer();
+}
+
+async function reloadChoreos() {
+  try { choreos = await api("/api/choreos"); } catch (e) { toast(e.message); return; }
+  renderChoreos(true);
+}
+
+// ----- editor -----
+
+const STEP_DEFAULTS = {
+  colour: {colour: "#ff8a00", brightness: 80, fade: 0, cut: false},
+  white: {brightness: 80, temp: 30, fade: 0},
+  effect: {effect: "gradient", colours: ["#ff2a1a", "#ffd400", "#2a5cff"], speed: 40, brightness: 80},
+  scene: {scene: ""},
+  on: {}, off: {},
+};
+
+function newStep(action = "colour") {
+  return {action, target: {type: "all"}, duration: 5, stagger: 0, ...structuredClone(STEP_DEFAULTS[action])};
+}
+
+function targetValue(t) {
+  return t.type === "group" ? "group:" + t.id : t.type === "bulbs" ? "bulb:" + t.ids[0] : "all";
+}
+function parseTarget(v) {
+  if (v.startsWith("group:")) return {type: "group", id: v.slice(6)};
+  if (v.startsWith("bulb:")) return {type: "bulbs", ids: [v.slice(5)]};
+  return {type: "all"};
+}
+
+function select(options, value, onChange) {
+  const s = el("select");
+  options.forEach(([v, label]) => { const o = el("option", {value: v}, label); s.appendChild(o); });
+  s.value = value;
+  s.addEventListener("change", () => onChange(s.value));
+  return s;
+}
+
+function field(label, ...nodes) {
+  const f = el("label", {class: "f"});
+  f.appendChild(el("span", {}, label));
+  nodes.forEach(n => f.appendChild(n));
+  return f;
+}
+
+function rangeField(label, value, min, max, onInput, suffix = "%") {
+  const r = el("input", {type: "range", min, max});
+  r.value = value;
+  const v = el("span", {class: "v"}, value + suffix);
+  r.addEventListener("input", () => { v.textContent = r.value + suffix; onInput(+r.value); });
+  return field(label, r, v);
+}
+
+function numberField(label, value, min, max, stepSize, onInput, unit = "s") {
+  const n = el("input", {type: "number", min, max, step: stepSize});
+  n.value = value;
+  n.addEventListener("input", () => onInput(n.value === "" ? 0 : +n.value));
+  return field(label, n, el("span", {}, unit));
+}
+
+function openEditor(existing) {
+  const draft = existing ? structuredClone(existing) : {name: "", loop: false, restore: false, steps: [newStep()]};
+  const d = $("#editor");
+  d.innerHTML = "";
+  const ed = el("div", {class: "ed"});
+  d.appendChild(ed);
+
+  const name = el("input", {type: "text", maxlength: "60", placeholder: "Name, e.g. Sunset"});
+  name.value = draft.name;
+  name.addEventListener("input", () => draft.name = name.value);
+  const loop = el("input", {type: "checkbox"}); loop.checked = draft.loop;
+  loop.addEventListener("change", () => draft.loop = loop.checked);
+  const restore = el("input", {type: "checkbox"}); restore.checked = draft.restore;
+  restore.addEventListener("change", () => draft.restore = restore.checked);
+  const loopL = el("label", {class: "check", title: "Start again from step 1 until you press Stop"}); loopL.append(loop, "Loop");
+  const restL = el("label", {class: "check", title: "When it ends or is stopped, lights go back to how they were before"});
+  restL.append(restore, "Restore after");
+  const head = el("div", {class: "ed-head"});
+  head.append(name, loopL, restL);
+  ed.append(el("h3", {}, existing ? "Edit choreography" : "New choreography"), head);
+
+  const stepsBox = el("div", {class: "steps"});
+  const total = el("span", {class: "total"});
+  ed.appendChild(stepsBox);
+
+  const targetOptions = () => [["all", "All lights"],
+    ...groups.map(g => ["group:" + g.id, "Group: " + g.name]),
+    ...[...bulbs.values()].map(b => b.state).sort((a, b) => a.name.localeCompare(b.name))
+       .map(s => ["bulb:" + s.id, "Bulb: " + s.name])];
+
+  const updateTotal = () => total.textContent = `Total: ${fmtTime(totalTime(draft))}` + (draft.loop ? ", then repeats" : "");
+
+  function renderSteps() {
+    stepsBox.innerHTML = "";
+    draft.steps.forEach((step, i) => stepsBox.appendChild(stepEl(step, i)));
+    const add = el("button", {class: "btn small", type: "button"}, "+ Add step");
+    add.addEventListener("click", () => {
+      const last = draft.steps[draft.steps.length - 1];
+      draft.steps.push(last ? {...structuredClone(last)} : newStep());
+      renderSteps();
+    });
+    stepsBox.appendChild(add);
+    updateTotal();
+  }
+
+  function stepEl(step, i) {
+    const box = el("div", {class: "step"});
+    const top = el("div", {class: "step-top"});
+    const action = select(Object.entries(ACTION_LABELS), step.action, v => {
+      Object.assign(step, {action: v}, structuredClone(STEP_DEFAULTS[v]),
+        v === "colour" && step.colour ? {colour: step.colour} : {});
+      if (v === "scene" && step.target.type !== "group" && groups.length) step.target = {type: "group", id: groups[0].id};
+      renderSteps();
+    });
+    const target = select(targetOptions(), targetValue(step.target), v => { step.target = parseTarget(v); renderSteps(); });
+    const btn = (label, title, fn) => { const b = el("button", {class: "icon", type: "button", title}, label);
+      b.addEventListener("click", fn); return b; };
+    const btns = el("span", {class: "btns"});
+    btns.append(
+      btn("▶", "Try this step", () => previewChoreo({name: `Step ${i + 1}`, steps: [step]}, `step ${i + 1}`)),
+      btn("↑", "Move up", () => { if (i > 0) { draft.steps.splice(i - 1, 0, draft.steps.splice(i, 1)[0]); renderSteps(); } }),
+      btn("↓", "Move down", () => { if (i < draft.steps.length - 1) { draft.steps.splice(i + 1, 0, draft.steps.splice(i, 1)[0]); renderSteps(); } }),
+      btn("✕", "Delete step", () => { draft.steps.splice(i, 1); renderSteps(); }));
+    top.append(el("span", {class: "num"}, i + 1), action, target, el("span", {class: "grow"}), btns);
+    box.appendChild(top);
+
+    const fields = el("div", {class: "fields"});
+    if (step.action === "colour") {
+      const c = el("input", {type: "color"}); c.value = step.colour;
+      c.addEventListener("input", () => step.colour = c.value);
+      const cut = el("input", {type: "checkbox"}); cut.checked = !!step.cut;
+      cut.addEventListener("change", () => { step.cut = cut.checked; renderSteps(); });
+      const cutL = el("label", {class: "f check", title: "Change instantly, without any fade"}); cutL.append(cut, "Hard cut");
+      fields.append(field("Color", c), rangeField("Brightness", step.brightness, 1, 100, v => step.brightness = v), cutL);
+      if (!step.cut) fields.appendChild(numberField("Fade", step.fade, 0, 3600, 0.5, v => step.fade = v));
+    } else if (step.action === "white") {
+      fields.append(rangeField("Brightness", step.brightness, 1, 100, v => step.brightness = v),
+        rangeField("Warm ↔ cold", step.temp, 0, 100, v => step.temp = v, ""),
+        numberField("Fade", step.fade, 0, 3600, 0.5, v => step.fade = v));
+    } else if (step.action === "effect") {
+      const colours = el("div", {class: "colours"});
+      const drawColours = () => {
+        colours.innerHTML = "";
+        step.colours.forEach((col, ci) => {
+          const wrap = el("span", {class: "c"});
+          const inp = el("input", {type: "color"}); inp.value = col;
+          inp.addEventListener("input", () => step.colours[ci] = inp.value);
+          wrap.appendChild(inp);
+          if (step.colours.length > 1) {
+            const x = el("button", {type: "button", title: "Remove"}, "×");
+            x.addEventListener("click", () => { step.colours.splice(ci, 1); drawColours(); });
+            wrap.appendChild(x);
+          }
+          colours.appendChild(wrap);
+        });
+        const max = step.effect === "breathe" ? 4 : 8;
+        if (step.colours.length < max) {
+          const plus = el("button", {class: "btn small", type: "button"}, "+");
+          plus.addEventListener("click", () => { step.colours.push(step.colours[step.colours.length - 1] || "#ffffff"); drawColours(); });
+          colours.appendChild(plus);
+        }
+      };
+      drawColours();
+      fields.append(field("Type", select(Object.entries(EFFECT_LABELS), step.effect, v => {
+          step.effect = v; if (v === "breathe") step.colours = step.colours.slice(0, 4); renderSteps(); })),
+        field("Colors", colours),
+        rangeField("Speed", step.speed, 1, 100, v => step.speed = v, ""),
+        rangeField("Brightness", step.brightness, 1, 100, v => step.brightness = v));
+    } else if (step.action === "scene") {
+      const g = step.target.type === "group" && groups.find(x => x.id === step.target.id);
+      if (!g) fields.appendChild(el("span", {class: "hint"}, "Choose a group as target to pick one of its scenes."));
+      else if (!g.scenes.length) fields.appendChild(el("span", {class: "hint"}, `"${g.name}" has no scenes yet — save one in the group first.`));
+      else {
+        if (!g.scenes.some(s => s.id === step.scene)) step.scene = g.scenes[0].id;
+        fields.appendChild(field("Scene", select(g.scenes.map(s => [s.id, s.name]), step.scene, v => step.scene = v)));
+      }
+    }
+    if (fields.childNodes.length) box.appendChild(fields);
+
+    const timing = el("div", {class: "fields"});
+    timing.append(
+      numberField("Duration", step.duration, 0.2, 3600, 0.1, v => { step.duration = v; updateTotal(); }),
+      numberField("Delay between bulbs", step.stagger, 0, 30, 0.1, v => step.stagger = v));
+    box.appendChild(timing);
+    if (step.action === "effect")
+      box.appendChild(el("span", {class: "hint"}, "The bulbs keep playing the effect by themselves after this step, until a later step changes them."));
+    else if (step.action !== "on" && step.action !== "off" && step.stagger > 0)
+      box.appendChild(el("span", {class: "hint"}, "With a delay, the bulbs change one after another → wave."));
+    return box;
+  }
+
+  renderSteps();
+
+  const foot = el("div", {class: "ed-foot"});
+  const b = (label, cls, fn) => { const x = el("button", {class: "btn " + cls, type: "button"}, label); x.addEventListener("click", fn); return x; };
+  foot.append(total);
+  if (existing) foot.appendChild(b("Delete", "danger", async () => {
+    if (!await confirmBox("Delete choreography?", `"${existing.name}" will be removed.`, "Delete")) return;
+    try { await api(`/api/choreos/${existing.id}`, undefined, "DELETE"); d.close(); await reloadChoreos(); }
+    catch (e) { toast(e.message); }
+  }));
+  foot.append(
+    b("▶ Try", "", () => previewChoreo({...draft, name: draft.name || "Preview"}, draft.name || "preview")),
+    b("Cancel", "", () => d.close()),
+    b("Save", "primary", async () => {
+      if (!draft.name.trim()) { toast("Please give it a name"); name.focus(); return; }
+      try {
+        if (existing) await api(`/api/choreos/${existing.id}`, draft, "PUT");
+        else await api("/api/choreos", draft);
+        d.close(); await reloadChoreos();
+      } catch (e) { toast(e.message); }
+    }));
+  ed.appendChild(foot);
+  d.showModal();
+  if (!existing) name.focus();
+}
+
+$("#newChoreo").onclick = () => openEditor(null);
+
+// ---------- foldable sections ----------
+
+document.querySelectorAll(".section-head[data-sec]").forEach(head => {
+  const key = head.dataset.sec, body = document.getElementById("sec-" + key);
+  const apply = () => {
+    const folded = foldedSections.has(key);
+    head.classList.toggle("collapsed", folded);
+    body.hidden = folded;
+  };
+  head.querySelector("h2").addEventListener("click", () => {
+    toggleSet(foldedSections, key, !foldedSections.has(key), "foldedSections");
+    apply();
+  });
+  apply();
+});
+$("#nowStop").onclick = stopChoreo;
+
 // ---------- loading ----------
 
 async function refresh() {
@@ -702,6 +1135,9 @@ async function refresh() {
   }
   groups = data.groups;
   renderGroups(first);
+  choreos = data.choreos || [];
+  renderChoreos(first);
+  if (JSON.stringify(data.player) !== JSON.stringify(player)) { player = data.player; paintPlayer(); }
 
   const all = data.bulbs, on = all.filter(s => s.online && s.on).length, off = all.filter(s => !s.online).length;
   $("#count").textContent = `${on} of ${all.length} on` + (off ? ` · ${off} offline` : "");
@@ -728,7 +1164,7 @@ $("#newGroup").onclick = async () => {
 };
 
 refresh();
-setInterval(() => { if (!document.hidden && !$("#dlg").open) refresh(); }, 10000);
+setInterval(() => { if (!document.hidden && !$("#dlg").open && !$("#editor").open) refresh(); }, 10000);
 document.addEventListener("visibilitychange", () => { if (!document.hidden) refresh(); });
 </script>
 </body>

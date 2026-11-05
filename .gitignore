@@ -5,3 +5,6 @@ tinytuya.json
 snapshot.json
 tuya-raw.json
 settings.json
+effects_check.py
+effects_test.py
+latency/

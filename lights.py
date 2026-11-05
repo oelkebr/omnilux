@@ -37,7 +37,30 @@ CODE_TO_ROLE = {
     "bright_value_v2": "bright", "bright_value": "bright",
     "temp_value_v2": "temp", "temp_value": "temp",
     "colour_data_v2": "colour", "colour_data": "colour",
+    "scene_data_v2": "scene",          # built-in effects
+    "control_data": "control",         # real-time control, used for hard cuts
 }
+
+# Built-in effect transitions (scene_data_v2), confirmed by effects_test.py
+EFFECT_TRANSITIONS = {"static": 0, "jump": 1, "gradient": 2}
+MAX_EFFECT_UNITS = 8
+
+
+def hex_to_hsv(hex_colour):
+    """'#rrggbb' -> (hue 0-360, saturation 0-1000) at full value."""
+    hex_colour = hex_colour.lstrip("#")
+    r, g, b = (int(hex_colour[i:i + 2], 16) / 255 for i in (0, 2, 4))
+    h, s, _ = colorsys.rgb_to_hsv(r, g, b)
+    return int(round(h * 360)) % 360, int(round(s * 1000))
+
+
+def encode_effect(units, scene_num=1):
+    """scene_data_v2: NN + per unit: hold fade transition HHHH SSSS VVVV BBBB TTTT."""
+    out = f"{scene_num:02x}"
+    for u in units[:MAX_EFFECT_UNITS]:
+        out += (f"{u['speed']:02x}{u['speed']:02x}{u['transition']:02x}"
+                f"{u['h']:04x}{u['s']:04x}{u['v']:04x}0000{0:04x}")
+    return out
 
 
 def _clamp(v, lo, hi):
@@ -99,6 +122,7 @@ class Bulb:
         self.name = self.original_name
         self.last = {}                    # last known state, used for group brightness
         self._lock = threading.Lock()     # bulbs handle one connection at a time
+        self._dev = None                  # kept-open connection, see _device()
         self.ip = cfg.get("ip") or "Auto"
         self.key = cfg.get("key", "")
         self.version = float(cfg.get("version") or 3.3)
@@ -135,6 +159,10 @@ class Bulb:
         for role in ("switch", "mode", "bright", "temp", "colour"):
             if base[role] in status_dps:
                 self.dps[role] = base[role]
+        if layout == "v2" and "colour" in self.dps:
+            # not always reported in the status, but present on v2 colour bulbs
+            self.dps.setdefault("scene", "25")
+            self.dps.setdefault("control", "28")
 
     def _range(self, role):
         return self.ranges.get(role) or LAYOUTS[self.layout or "v2"][f"{role}_range"]
@@ -148,11 +176,55 @@ class Bulb:
         return "temp" in self.dps
 
     def _device(self):
-        d = tinytuya.Device(self.id, self.ip, self.key, version=self.version,
-                            connection_timeout=3)
-        d.set_socketRetryLimit(1)
-        d.set_socketTimeout(3)
-        return d
+        """The bulb's connection. It is kept open between commands: opening a new one for every
+        command adds a random 0.1-0.5 s delay (measured with latency_cam.py). Call with _lock held."""
+        if self._dev is None:
+            d = tinytuya.Device(self.id, self.ip, self.key, version=self.version,
+                                connection_timeout=3)
+            d.set_socketRetryLimit(1)
+            d.set_socketTimeout(3)
+            d.set_socketPersistent(True)
+            self._dev = d
+        else:
+            self._drain(self._dev)
+        return self._dev
+
+    @staticmethod
+    def _drain(d):
+        """Throw away replies to earlier commands sent without waiting, so they aren't
+        mistaken for the answer to the next one."""
+        sock = getattr(d, "socket", None)
+        if sock is None:
+            return
+        try:
+            sock.setblocking(False)
+            while True:
+                if not sock.recv(4096):           # the bulb closed the connection
+                    d.close()                     # tinytuya opens a new one on the next command
+                    return
+        except (BlockingIOError, InterruptedError):
+            pass                                  # nothing (more) waiting
+        except OSError:
+            d.close()                             # broken connection: tinytuya reopens it
+        finally:
+            try:
+                if getattr(d, "socket", None) is not None:
+                    d.socket.settimeout(3)
+            except OSError:
+                pass
+
+    def _drop_connection(self):
+        """Call with _lock held."""
+        if self._dev is not None:
+            try:
+                self._dev.close()
+            except Exception:
+                pass
+            self._dev = None
+
+    def close(self):
+        with self._lock:
+            self._drop_connection()
 
     def status(self):
         info = {"id": self.id, "name": self.name, "ip": self.ip, "online": False,
@@ -160,7 +232,11 @@ class Bulb:
         try:
             with self._lock:
                 result = self._device().status()
+                if not result or "dps" not in result:
+                    self._drop_connection()
         except Exception as e:  # network errors etc.
+            with self._lock:
+                self._drop_connection()
             info["error"] = str(e)
             return info
         if not result or "dps" not in result:
@@ -174,6 +250,7 @@ class Bulb:
         info["on"] = bool(dps.get(self.dps["switch"], False))
         mode = dps.get(self.dps.get("mode", ""), "white")
         info["mode"] = "colour" if mode == "colour" else "white"
+        info["effect"] = mode in ("scene", "music")     # a built-in effect is running
 
         if "bright" in self.dps and self.dps["bright"] in dps:
             info["brightness"] = _to_percent(dps[self.dps["bright"]], self._range("bright"))
@@ -186,13 +263,25 @@ class Bulb:
         self.last = {k: info[k] for k in SNAPSHOT_KEYS if k in info}
         return info
 
-    def _send(self, values):
+    def _send(self, values, wait=True):
+        """wait=False: don't wait for the bulb's answer. Needed for hard cuts (control_data):
+        the bulb never answers those, so waiting would block for the 3 s timeout."""
         error = None
         for attempt in range(2):          # one retry: Tuya bulbs occasionally drop a packet
             try:
                 with self._lock:
-                    result = self._device().set_multiple_values(values)
+                    d = self._device()
+                    # After one failed command tinytuya switches the connection to "one value at a
+                    # time, 1 s apart" for good - with a kept-open connection a single hiccup would
+                    # make every later colour change take 2 s. Always send all values together.
+                    d.max_simultaneous_dps = 0
+                    result = d.set_multiple_values(values, nowait=not wait)
+                    d.max_simultaneous_dps = 0
+                    if isinstance(result, dict) and result.get("Error"):
+                        self._drop_connection()
             except Exception as e:
+                with self._lock:
+                    self._drop_connection()
                 result = {"Error": str(e)}
             if not (isinstance(result, dict) and result.get("Error")):
                 return
@@ -227,7 +316,8 @@ class Bulb:
         if temp is not None:
             self.last["temp"] = temp
 
-    def set_colour(self, hex_colour, brightness=100):
+    def set_colour(self, hex_colour, brightness=100, temp=None):
+        """temp (optional) only stores the white tone for later; the bulb stays in colour mode."""
         self._ensure_known()
         if not self.has_colour:
             raise RuntimeError("This bulb has no colour support")
@@ -238,6 +328,8 @@ class Bulb:
                   self.dps["colour"]: encode_colour(r, g, b, brightness, self.layout)}
         if "mode" in self.dps:
             values[self.dps["mode"]] = "colour"
+        if temp is not None and self.has_temp:
+            values[self.dps["temp"]] = _to_raw(temp, self._range("temp"))
         self._send(values)
         self.last.update(on=True, mode="colour", colour=hex_colour, brightness=brightness)
 
@@ -255,9 +347,65 @@ class Bulb:
         if not state.get("on"):
             self.set_power(False)
         elif state.get("mode") == "colour" and self.has_colour and state.get("colour"):
-            self.set_colour(state["colour"], state.get("brightness") or 100)
+            self.set_colour(state["colour"], state.get("brightness") or 100,
+                            temp=state.get("temp") if self.has_temp else None)
         else:
             self.set_white(state.get("brightness"), state.get("temp") if self.has_temp else None)
+
+    # ---------- choreography helpers ----------
+
+    @property
+    def has_effects(self):
+        return "scene" in self.dps
+
+    def cut_colour(self, hex_colour, brightness=100):
+        """Instant colour change without the bulb's own short fade (control_data, direct)."""
+        self._ensure_known()
+        if "control" not in self.dps or not self.has_colour:
+            return self.set_colour(hex_colour, brightness)
+        h, s = hex_to_hsv(hex_colour)
+        v = int(round(_clamp(brightness, 1, 100) * 10))
+        values = {self.dps["switch"]: True,
+                  self.dps["control"]: f"0{h:04x}{s:04x}{v:04x}{0:04x}{0:04x}"}
+        if self.last.get("mode") != "colour" and "mode" in self.dps:
+            values[self.dps["mode"]] = "colour"
+        self._send(values, wait=False)
+        self.last.update(on=True, mode="colour", colour="#" + hex_colour.lstrip("#").lower(),
+                         brightness=brightness)
+        self.needs_sync = True      # the bulb still reports its old colour, see sync()
+
+    def sync(self):
+        """After hard cuts the bulb reports a stale colour; write the real one once."""
+        if getattr(self, "needs_sync", False) and self.last.get("mode") == "colour":
+            self.needs_sync = False
+            self.set_colour(self.last.get("colour") or "#ffffff", self.last.get("brightness") or 100)
+
+    def set_effect(self, kind, colours, speed=40, brightness=80):
+        """Start a built-in effect that the bulb plays by itself.
+        kind: 'gradient' (smooth flow), 'jump' or 'breathe'. speed: 1-100, higher = faster."""
+        self._ensure_known()
+        if not self.has_effects:
+            raise RuntimeError("This bulb has no built-in effects")
+        self._send(self.effect_values(kind, colours, speed, brightness))
+        self.last.update(on=True, mode="effect")
+
+    def effect_values(self, kind, colours, speed=40, brightness=80):
+        """The DP values that start a built-in effect (see set_effect)."""
+        speed = int(_clamp(speed, 1, 100))
+        v = int(round(_clamp(brightness, 1, 100) * 10))
+        units = []
+        for c in colours or ["#ffffff"]:
+            h, s = hex_to_hsv(c)
+            if kind == "breathe":
+                units.append({"transition": 2, "h": h, "s": s, "v": v, "speed": speed})
+                units.append({"transition": 2, "h": h, "s": s, "v": max(10, v // 15), "speed": speed})
+            else:
+                units.append({"transition": EFFECT_TRANSITIONS.get(kind, 2),
+                              "h": h, "s": s, "v": v, "speed": speed})
+        values = {self.dps["switch"]: True, self.dps["scene"]: encode_effect(units)}
+        if "mode" in self.dps:
+            values[self.dps["mode"]] = "scene"
+        return values
 
 
 SNAPSHOT_KEYS = ("on", "mode", "brightness", "temp", "colour")

@@ -32,12 +32,13 @@ class Store:
     def __init__(self, path=SETTINGS_FILE):
         self.path = Path(path)
         self._lock = threading.RLock()
-        self.data = {"names": {}, "groups": []}
+        self.data = {"names": {}, "groups": [], "choreos": None}
         if self.path.exists():
             try:
                 loaded = json.loads(self.path.read_text(encoding="utf-8"))
                 self.data["names"] = loaded.get("names") or {}
                 self.data["groups"] = loaded.get("groups") or []
+                self.data["choreos"] = loaded.get("choreos")   # None = never set up
             except ValueError:
                 # keep a copy of the broken file instead of silently losing it
                 self.path.replace(self.path.with_suffix(".broken.json"))
@@ -134,3 +135,42 @@ class Store:
             group["scenes"].remove(scene)
             self.save()
             return True
+
+    # ---------- choreographies ----------
+
+    def seed_choreos(self, examples):
+        """Add the example choreographies the very first time (not again after you delete them)."""
+        with self._lock:
+            if self.data["choreos"] is None:
+                self.data["choreos"] = [dict(c, id=_new_id()) for c in examples]
+                self.save()
+
+    @property
+    def choreos(self):
+        return self.data["choreos"] or []
+
+    def choreo(self, choreo_id):
+        return next((c for c in self.choreos if c["id"] == choreo_id), None)
+
+    def add_choreo(self, choreo):
+        with self._lock:
+            choreo = dict(choreo, id=_new_id())
+            self.data["choreos"] = self.choreos + [choreo]
+            self.save()
+            return choreo
+
+    def update_choreo(self, choreo_id, choreo):
+        with self._lock:
+            for i, c in enumerate(self.choreos):
+                if c["id"] == choreo_id:
+                    self.data["choreos"][i] = dict(choreo, id=choreo_id)
+                    self.save()
+                    return self.data["choreos"][i]
+            return None
+
+    def delete_choreo(self, choreo_id):
+        with self._lock:
+            before = len(self.choreos)
+            self.data["choreos"] = [c for c in self.choreos if c["id"] != choreo_id]
+            self.save()
+            return len(self.choreos) < before
