@@ -123,6 +123,8 @@ class Bulb:
         self.last = {}                    # last known state, used for group brightness
         self._lock = threading.Lock()     # bulbs handle one connection at a time
         self._dev = None                  # kept-open connection, see _device()
+        self._fails = 0                   # failed calls in a row, see _offline()
+        self._down_until = 0.0
         self.ip = cfg.get("ip") or "Auto"
         self.key = cfg.get("key", "")
         self.version = float(cfg.get("version") or 3.3)
@@ -226,22 +228,52 @@ class Bulb:
         with self._lock:
             self._drop_connection()
 
+    # A bulb that doesn't answer costs several seconds of timeouts per call. Calls pile up behind
+    # its lock and fill the shared thread pool, which then delays every other bulb too. So after
+    # two failed calls in a row the bulb counts as offline and calls fail at once; it is tried
+    # again after 15 s, then 30, 60 ... up to 5 min. One successful answer resets everything.
+    OFFLINE_AFTER = 2
+    RETRY_FIRST, RETRY_MAX = 15.0, 300.0
+
+    def _offline(self):
+        """-> 'offline, next try in N s' while the bulb is skipped, else None."""
+        left = self._down_until - time.monotonic()
+        return f"Bulb offline, next try in {left:.0f} s" if left > 0 else None
+
+    def _failed(self):
+        self._fails += 1
+        if self._fails >= self.OFFLINE_AFTER:
+            wait = min(self.RETRY_MAX, self.RETRY_FIRST * 2 ** (self._fails - self.OFFLINE_AFTER))
+            self._down_until = time.monotonic() + wait
+
+    def _worked(self):
+        self._fails, self._down_until = 0, 0.0
+
     def status(self):
         info = {"id": self.id, "name": self.name, "ip": self.ip, "online": False,
                 "has_colour": self.has_colour, "has_temp": self.has_temp}
+        if self._offline():
+            info["error"] = self._offline()
+            return info
         try:
             with self._lock:
+                if self._offline():                 # went offline while we waited for the lock
+                    info["error"] = self._offline()
+                    return info
                 result = self._device().status()
                 if not result or "dps" not in result:
                     self._drop_connection()
+                    self._failed()
         except Exception as e:  # network errors etc.
             with self._lock:
                 self._drop_connection()
+                self._failed()
             info["error"] = str(e)
             return info
         if not result or "dps" not in result:
             info["error"] = (result or {}).get("Error", "No response")
             return info
+        self._worked()
 
         dps = result["dps"]
         if "switch" not in self.dps:
@@ -268,8 +300,12 @@ class Bulb:
         the bulb never answers those, so waiting would block for the 3 s timeout."""
         error = None
         for attempt in range(2):          # one retry: Tuya bulbs occasionally drop a packet
+            if self._offline():
+                raise RuntimeError(self._offline())
             try:
                 with self._lock:
+                    if self._offline():             # went offline while we waited for the lock
+                        raise RuntimeError(self._offline())
                     d = self._device()
                     # After one failed command tinytuya switches the connection to "one value at a
                     # time, 1 s apart" for good - with a kept-open connection a single hiccup would
@@ -280,13 +316,18 @@ class Bulb:
                     if isinstance(result, dict) and result.get("Error"):
                         self._drop_connection()
             except Exception as e:
+                if str(e).startswith("Bulb offline"):
+                    raise
                 with self._lock:
                     self._drop_connection()
                 result = {"Error": str(e)}
             if not (isinstance(result, dict) and result.get("Error")):
+                self._worked()
                 return
             error = result["Error"]
             time.sleep(0.3)
+        with self._lock:
+            self._failed()
         raise RuntimeError(error)
 
     def _ensure_known(self):

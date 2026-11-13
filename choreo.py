@@ -15,7 +15,7 @@ A choreography looks like this (stored in settings.json under "choreos"):
 Step fields
   action     colour | white | effect | scene | on | off
   target     {"type": "all"} | {"type": "group", "id": "<group id>"} | {"type": "bulbs", "ids": [...]}
-  duration   seconds until the next step starts
+  duration   seconds until the next step starts (0 = the next step starts together with this one)
   stagger    seconds between one bulb and the next -> wave effect (0 = all together)
   colour     "#rrggbb"                         (colour)
   brightness 1-100                             (colour, white, effect)
@@ -77,20 +77,26 @@ def delay_kind(step, bulb):
 def send_ahead(delays, step, bulbs):
     """{bulb id: seconds to hold this bulb's command back} so that all bulbs change together:
     the slowest bulb is sent first, faster ones a little later. Unmeasured bulbs get the median."""
+    return send_ahead_jobs(delays, [(b.id, step, b) for b in bulbs])
+
+
+def send_ahead_jobs(delays, jobs):
+    """Like send_ahead, for commands of several steps that should land together.
+    jobs: [(key, step, bulb)] -> {key: seconds to hold back}"""
     lat = {}
-    for b in bulbs:
+    for key, step, b in jobs:
         kind = delay_kind(step, b)
-        lat[b.id] = (kind, delays.get(b.id, {}).get(kind))
+        lat[key] = (kind, delays.get(b.id, {}).get(kind))
     known = {}
     for kind, v in lat.values():
         if v is not None:
             known.setdefault(kind, []).append(v)
     if not known:
-        return {b.id: 0.0 for b in bulbs}
+        return {key: 0.0 for key in lat}
     fill = {k: statistics.median(v) for k, v in known.items()}
-    secs = {i: (v if v is not None else fill.get(kind, 0.0)) for i, (kind, v) in lat.items()}
+    secs = {key: (v if v is not None else fill.get(kind, 0.0)) for key, (kind, v) in lat.items()}
     slowest = max(secs.values())
-    return {i: slowest - s for i, s in secs.items()}
+    return {key: slowest - s for key, s in secs.items()}
 
 
 # ---------- validation ----------
@@ -133,7 +139,7 @@ def clean_step(raw, bulb_ids, groups):
     step = {
         "action": action,
         "target": target,
-        "duration": _num(raw.get("duration"), 0.2, 3600, 5),
+        "duration": _num(raw.get("duration"), 0, 3600, 5),     # 0 = together with the next step
         "stagger": _num(raw.get("stagger"), 0, 30, 0),
     }
     if action == "colour":
@@ -169,8 +175,11 @@ def clean_choreo(raw, bulb_ids, groups):
         raise ValueError("A choreography needs at least one step")
     if len(steps) > 200:
         raise ValueError("Too many steps (max 200)")
+    cleaned = [clean_step(s, bulb_ids, groups) for s in steps]
+    if raw.get("loop") and sum(s["duration"] for s in cleaned) < 0.2:
+        raise ValueError("A repeating choreography must last at least 0.2 s in total")
     return {"name": name, "loop": bool(raw.get("loop")), "restore": bool(raw.get("restore")),
-            "steps": [clean_step(s, bulb_ids, groups) for s in steps]}
+            "steps": cleaned}
 
 
 # ---------- examples (added once, the first time) ----------
@@ -309,12 +318,17 @@ class Player:
         effect_bulbs = set()           # bulbs currently playing an effect started by us
 
         try:
+            steps = choreo["steps"]
             while not stop.is_set():
-                for i, step in enumerate(choreo["steps"]):
-                    if stop.is_set():
-                        break
+                i = 0
+                while i < len(steps) and not stop.is_set():
+                    # a step with duration 0 is played together with the next one(s)
+                    batch = [steps[i]]
+                    while batch[-1]["duration"] == 0 and i + len(batch) < len(steps):
+                        batch.append(steps[i + len(batch)])
                     self._set_state(stop, step=i + 1)
-                    self._play_step(step, stop, effect_bulbs)
+                    self._play_steps(batch, stop, effect_bulbs)
+                    i += len(batch)
                 if not choreo["loop"]:
                     break
                 self._set_state(stop, round=self.state.get("round", 1) + 1)
@@ -349,34 +363,41 @@ class Player:
         except Exception:
             pass
 
-    def _play_step(self, step, stop, effect_bulbs):
+    def _play_steps(self, batch, stop, effect_bulbs):
+        """Play steps that start at the same moment (all but the last have duration 0).
+        All their commands are timed together, so e.g. "these bulbs red, those blue" lands at once.
+        A bulb that appears in several of the steps gets its commands in step order."""
         start = time.monotonic()
-        bulbs = self._targets(step)
+        per_bulb = {}                       # bulb id -> [(key, step, index in its step, bulb)]
         scene_states = {}
-        if step["action"] == "scene":
-            _, scene = self.store.scene(step["target"]["id"], step["scene"])
-            scene_states = scene["states"] if scene else {}
+        for s, step in enumerate(batch):
+            if step["action"] == "scene":
+                _, scene = self.store.scene(step["target"]["id"], step["scene"])
+                scene_states[s] = scene["states"] if scene else {}
+            for index, b in enumerate(self._targets(step)):
+                per_bulb.setdefault(b.id, []).append(((s, b.id), step, index, b))
+        hold = send_ahead_jobs(self.delays, [(key, step, b) for jobs in per_bulb.values()
+                                             for key, step, _, b in jobs])
 
-        hold = send_ahead(self.delays, step, bulbs)
+        def run_bulb(jobs):
+            for key, step, index, bulb in jobs:
+                delay = index * step["stagger"] + hold[key]
+                if stop.wait(max(0, start + delay - time.monotonic())):
+                    return
+                try:
+                    self._do(bulb, step, stop, scene_states.get(key[0], {}))
+                    if step["action"] == "effect":
+                        effect_bulbs.add(bulb.id)
+                    else:
+                        effect_bulbs.discard(bulb.id)   # a later step ended its effect
+                except Exception:
+                    self._set_state(stop, errors=self.state.get("errors", 0) + 1)
 
-        def run_bulb(index, bulb):
-            delay = index * step["stagger"] + hold[bulb.id]
-            if stop.wait(max(0, start + delay - time.monotonic())):
-                return
-            try:
-                self._do(bulb, step, stop, scene_states)
-                if step["action"] == "effect":
-                    effect_bulbs.add(bulb.id)
-                else:
-                    effect_bulbs.discard(bulb.id)   # a later step ended its effect
-            except Exception:
-                self._set_state(stop, errors=self.state.get("errors", 0) + 1)
-
-        futures = [self._pool.submit(run_bulb, i, b) for i, b in enumerate(bulbs)]
+        futures = [self._pool.submit(run_bulb, jobs) for jobs in per_bulb.values()]
         for f in futures:
             f.result()
-        # wait for the rest of the step's duration
-        stop.wait(max(0, start + step["duration"] - time.monotonic()))
+        # wait for the rest of the last step's duration
+        stop.wait(max(0, start + batch[-1]["duration"] - time.monotonic()))
 
     def _do(self, bulb, step, stop, scene_states):
         action = step["action"]

@@ -1059,7 +1059,7 @@ function openEditor(existing) {
 
     const timing = el("div", {class: "fields"});
     timing.append(
-      numberField("Duration", step.duration, 0.2, 3600, 0.1, v => { step.duration = v; updateTotal(); }),
+      numberField("Duration", step.duration, 0, 3600, 0.05, v => { step.duration = v; updateTotal(); }),
       numberField("Delay between bulbs", step.stagger, 0, 30, 0.1, v => step.stagger = v));
     box.appendChild(timing);
     if (step.action === "effect")
